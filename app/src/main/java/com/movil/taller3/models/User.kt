@@ -7,5 +7,6 @@ data class User(
     val idNumber: String = "",
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
-    val imageUrl: String = ""
+    val imageUrl: String = "",
+    val available: Boolean = false
 )

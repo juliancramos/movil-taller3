@@ -20,7 +20,7 @@ class LoginActivity : AppCompatActivity() {
         auth = FirebaseAuth.getInstance()
 
         if (FirebaseAuth.getInstance().currentUser != null) {
-            startActivity(Intent(this, MainActivity::class.java))
+            startActivity(Intent(this, MainMapsActivity::class.java))
             //para quitar de la pila de actividades
             finish()
             //si ya está no hay necesidad de seguir cargando el on create
@@ -35,7 +35,7 @@ class LoginActivity : AppCompatActivity() {
         auth.signInWithEmailAndPassword(email, password)
             .addOnCompleteListener { task ->
                 if (task.isSuccessful) {
-                    startActivity(Intent(this, MainActivity::class.java))
+                    startActivity(Intent(this, MainMapsActivity::class.java))
                     finish()
                 } else {
                     Toast.makeText(this, "Error: ${task.exception?.message}", Toast.LENGTH_LONG)

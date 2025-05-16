@@ -110,7 +110,7 @@ class RegisterActivity : AppCompatActivity() {
 
                         database.child("users").child(uid).setValue(user)
                             .addOnSuccessListener {
-                                startActivity(Intent(this, MainActivity::class.java))
+                                startActivity(Intent(this, MainMapsActivity::class.java))
                                 finish()
                             }
                             .addOnFailureListener {
