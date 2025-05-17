@@ -213,7 +213,25 @@ class MainMapsActivity : AppCompatActivity(), OnMapReadyCallback {
             marcadorUbicacionActual?.remove()
             marcadorUbicacionActual = mMap.addMarker(MarkerOptions().position(latLng).title("Ubicación actual"))
         }
+
+        // Actualizar la ubicación en Firebase para que otros usuarios puedan verla
+        updateLocationInDatabase(location.latitude, location.longitude)
     }
+
+    private fun updateLocationInDatabase(latitude: Double, longitude: Double) {
+        val database = FirebaseDatabase.getInstance()
+        val currentUserID = FirebaseAuth.getInstance().currentUser?.uid
+
+        if (currentUserID != null) {
+            val userRef = database.getReference("users").child(currentUserID)
+            userRef.child("latitude").setValue(latitude)
+            userRef.child("longitude").setValue(longitude)
+                .addOnFailureListener { e ->
+                    Log.e("MainMapsActivity", "Error updating location in database", e)
+                }
+        }
+    }
+
     private fun loadLocations(context: Context){
         val filename = "locations.json"
         val inputStream = context.assets.open(filename)

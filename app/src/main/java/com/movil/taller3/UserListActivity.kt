@@ -27,7 +27,6 @@ class UserListActivity : AppCompatActivity() {
 
         binding.recyclerViewUsers.layoutManager = LinearLayoutManager(this)
         userAdapter = UserAdapter(availableUsers) { user ->
-            // Launch tracking activity when "Track" button is clicked
             val intent = Intent(this, AvailableUserActivity::class.java)
             intent.putExtra("USER_ID", user.idNumber)
             intent.putExtra("USER_NAME", "${user.firstName} ${user.lastName}")

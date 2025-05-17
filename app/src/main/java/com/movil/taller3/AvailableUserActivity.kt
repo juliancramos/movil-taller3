@@ -1,5 +1,6 @@
 package com.movil.taller3
 
+import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -11,15 +12,21 @@ import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.result.ActivityResultCallback
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import com.google.android.gms.common.api.ResolvableApiException
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationSettingsRequest
+import com.google.android.gms.location.LocationSettingsResponse
 import com.google.android.gms.location.Priority
+import com.google.android.gms.location.SettingsClient
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -29,6 +36,7 @@ import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.tasks.Task
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -43,12 +51,12 @@ class AvailableUserActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
     private lateinit var binding: ActivityAvailableUserBinding
 
-    // Sensors
+    // Sensores
     private lateinit var sensorManager: SensorManager
     private var lightSensor: Sensor? = null
     private lateinit var sensorEventListener: SensorEventListener
 
-    // Location
+    // Localización
     private lateinit var locationClient: FusedLocationProviderClient
     private lateinit var locationRequest: LocationRequest
     private lateinit var locationCallback: LocationCallback
@@ -87,32 +95,67 @@ class AvailableUserActivity : AppCompatActivity(), OnMapReadyCallback {
         binding = ActivityAvailableUserBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Get tracked user information from intent
         trackedUserId = intent.getStringExtra("USER_ID")
         trackedUserName = intent.getStringExtra("USER_NAME")
 
-        // Setup map
-        val mapFragment = supportFragmentManager
-            .findFragmentById(R.id.map) as SupportMapFragment
-        mapFragment.getMapAsync(this)
-
-        // Setup sensors
-        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
-        lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
-        sensorEventListener = createSensorEventListener()
-
-        // Setup location services
         locationClient = LocationServices.getFusedLocationProviderClient(this)
         locationRequest = createLocationRequest()
         locationCallback = createLocationCallback()
 
-        // Setup back button
+        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
+        lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT)
+        sensorEventListener = createSensorEventListener()
+
+        val mapFragment = supportFragmentManager
+            .findFragmentById(R.id.map) as SupportMapFragment
+        mapFragment.getMapAsync(this)
+
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_DENIED
+        ) {
+            if (shouldShowRequestPermissionRationale(android.Manifest.permission.ACCESS_FINE_LOCATION)) {
+                Toast.makeText(
+                    this,
+                    "El permiso se necesita para obtener su ubicación en tiempo real",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            locationPermission.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        }else
+            locationSettings()
+
         binding.buttonBack.setOnClickListener {
             finish()
         }
 
-        // Set user name
         binding.textViewUsername.text = trackedUserName ?: "Usuario"
+    }
+
+    private fun locationSettings() {
+        val builder = LocationSettingsRequest.Builder().addLocationRequest(locationRequest)
+        val client: SettingsClient = LocationServices.getSettingsClient(this)
+        val task: Task<LocationSettingsResponse> = client.checkLocationSettings(builder.build())
+        task.addOnSuccessListener { locationSettingsResponse ->
+            // All location settings are satisfied. The client can initialize
+            // location requests here. // ...
+            startLocationUpdates()
+        }
+        task.addOnFailureListener { exception ->
+            if (exception is ResolvableApiException) {
+                // Location settings are not satisfied, but this can be fixed
+                // by showing the user a dialog.
+                try {
+                    // Show the dialog by calling startResolutionForResult(),
+                    // and check the result in onActivityResult().
+                    val isr: IntentSenderRequest =
+                        IntentSenderRequest.Builder(exception.resolution).build()
+                    locationSettings.launch(isr)
+                } catch (sendEx: IntentSender.SendIntentException) {
+                    Toast.makeText(baseContext, "There is no GPS hardware", Toast.LENGTH_LONG)
+                        .show()
+                }
+            }
+        }
     }
 
     override fun onResume() {
@@ -137,7 +180,6 @@ class AvailableUserActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onPause()
         stopLocationUpdates()
         sensorManager.unregisterListener(sensorEventListener)
-        // Remove database listener
         if (locationListener != null) {
             val database = FirebaseDatabase.getInstance()
             val userRef = database.getReference("users")
@@ -150,13 +192,10 @@ class AvailableUserActivity : AppCompatActivity(), OnMapReadyCallback {
             override fun onSensorChanged(event: SensorEvent?) {
                 if (event?.sensor?.type == Sensor.TYPE_LIGHT) {
                     val lightValue = event.values[0]
-                    // Change map type based on light sensor
                     if (::mMap.isInitialized) {
                         if (lightValue < 50) {
-                            // Modo nocturno para poca luz
-                            mMap.mapType = GoogleMap.MAP_TYPE_SATELLITE
+                            mMap.mapType = GoogleMap.MAP_TYPE_NORMAL
                         } else {
-                            // Modo normal para buena iluminación
                             mMap.mapType = GoogleMap.MAP_TYPE_NORMAL
                         }
                     }
@@ -164,7 +203,6 @@ class AvailableUserActivity : AppCompatActivity(), OnMapReadyCallback {
             }
 
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-                // Not needed for this implementation
             }
         }
     }
@@ -184,7 +222,6 @@ class AvailableUserActivity : AppCompatActivity(), OnMapReadyCallback {
                     val latLng = LatLng(location.latitude, location.longitude)
                     currentLocation = latLng
 
-                    // Update current location marker
                     if (currentLocationMarker == null) {
                         currentLocationMarker = mMap.addMarker(
                             MarkerOptions()
@@ -197,10 +234,8 @@ class AvailableUserActivity : AppCompatActivity(), OnMapReadyCallback {
                         currentLocationMarker?.position = latLng
                     }
 
-                    // Update distance calculation
                     updateDistanceToUser()
 
-                    // Update current user location in database
                     updateMyLocationInDatabase(latLng)
                 }
             }
@@ -240,25 +275,56 @@ class AvailableUserActivity : AppCompatActivity(), OnMapReadyCallback {
         val database = FirebaseDatabase.getInstance()
         val userRef = database.getReference("users")
 
-        locationListener = userRef.orderByChild("idNumber").equalTo(userId)
-            .addValueEventListener(object : ValueEventListener {
-                override fun onDataChange(snapshot: DataSnapshot) {
-                    for (userSnapshot in snapshot.children) {
-                        val user = userSnapshot.getValue(User::class.java)
-                        if (user != null) {
-                            updateTrackedUserLocation(user)
+        Log.d("AvailableUserActivity", "Comenzando seguimiento de usuario con ID: $userId")
+
+        // Escuchar cambios en todos los usuarios, independientemente de su idNumber o ID de nodo
+        locationListener = userRef.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                var userFound = false
+
+                for (userSnapshot in snapshot.children) {
+                    val user = userSnapshot.getValue(User::class.java)
+
+                    // Verificar la coincidencia por idNumber
+                    if (user != null && user.idNumber == userId) {
+                        Log.d("AvailableUserActivity", "Usuario encontrado por idNumber: ${user.firstName} ${user.lastName}")
+                        updateTrackedUserLocation(user)
+                        userFound = true
+                        break
+                    }
+
+                    // Alternativa: verificar si el key del snapshot coincide con userId
+                    if (userSnapshot.key == userId) {
+                        val userByKey = userSnapshot.getValue(User::class.java)
+                        if (userByKey != null) {
+                            Log.d("AvailableUserActivity", "Usuario encontrado por key: ${userByKey.firstName} ${userByKey.lastName}")
+                            updateTrackedUserLocation(userByKey)
+                            userFound = true
+                            break
                         }
                     }
                 }
 
-                override fun onCancelled(error: DatabaseError) {
-                    Log.e("AvailableUserActivity", "Error tracking user", error.toException())
+                if (!userFound) {
+                    Log.d("AvailableUserActivity", "No se encontró al usuario con ID: $userId")
                 }
-            })
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("AvailableUserActivity", "Error tracking user", error.toException())
+            }
+        })
     }
 
     private fun updateTrackedUserLocation(user: User) {
+        // Verificamos que las coordenadas sean válidas
+        if (user.latitude == 0.0 && user.longitude == 0.0) {
+            Log.d("AvailableUserActivity", "Coordenadas inválidas para el usuario: ${user.firstName} ${user.lastName}")
+            return
+        }
+
         val userLocation = LatLng(user.latitude, user.longitude)
+        Log.d("AvailableUserActivity", "Actualizando ubicación de usuario seguido: Lat=${user.latitude}, Lng=${user.longitude}")
 
         if (trackedUserMarker == null) {
             trackedUserMarker = mMap.addMarker(
@@ -274,6 +340,7 @@ class AvailableUserActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         } else {
             trackedUserMarker?.position = userLocation
+            Log.d("AvailableUserActivity", "Marcador de usuario seguido actualizado")
         }
 
         // Update user info in UI
@@ -289,9 +356,14 @@ class AvailableUserActivity : AppCompatActivity(), OnMapReadyCallback {
 
         if (currentLoc != null && trackedMarker != null) {
             val results = FloatArray(1)
+            val trackedLatLng = trackedMarker.position
+
+            Log.d("AvailableUserActivity", "Calculando distancia desde: Lat=${currentLoc.latitude}, Lng=${currentLoc.longitude}")
+            Log.d("AvailableUserActivity", "Hasta: Lat=${trackedLatLng.latitude}, Lng=${trackedLatLng.longitude}")
+
             Location.distanceBetween(
                 currentLoc.latitude, currentLoc.longitude,
-                trackedMarker.position.latitude, trackedMarker.position.longitude,
+                trackedLatLng.latitude, trackedLatLng.longitude,
                 results
             )
 
@@ -302,29 +374,55 @@ class AvailableUserActivity : AppCompatActivity(), OnMapReadyCallback {
                 String.format("%.2f kilómetros", distanceInMeters / 1000)
             }
 
+            Log.d("AvailableUserActivity", "Distancia calculada: $formattedDistance")
             binding.textViewDistance.text = "Distancia: $formattedDistance"
+        } else {
+            if (currentLoc == null) {
+                Log.d("AvailableUserActivity", "No hay ubicación actual para calcular distancia")
+            }
+            if (trackedMarker == null) {
+                Log.d("AvailableUserActivity", "No hay marcador de usuario seguido para calcular distancia")
+            }
         }
     }
 
     private fun zoomToShowBothMarkers(location1: LatLng, location2: LatLng) {
-        val bounds = LatLngBounds.Builder()
-            .include(location1)
-            .include(location2)
-            .build()
+        // Verificamos que las ubicaciones sean válidas
+        if ((location1.latitude == 0.0 && location1.longitude == 0.0) ||
+            (location2.latitude == 0.0 && location2.longitude == 0.0)) {
+            Log.d("AvailableUserActivity", "Coordenadas inválidas para centrar mapa")
+            return
+        }
 
-        mMap.animateCamera(
-            CameraUpdateFactory.newLatLngBounds(
-                bounds,
-                100  // padding
+        try {
+            val bounds = LatLngBounds.Builder()
+                .include(location1)
+                .include(location2)
+                .build()
+
+            Log.d("AvailableUserActivity", "Centrando mapa para mostrar ambos marcadores")
+            mMap.animateCamera(
+                CameraUpdateFactory.newLatLngBounds(
+                    bounds,
+                    120  // Aumentamos el padding para mejor visualización
+                )
             )
-        )
+        } catch (e: Exception) {
+            Log.e("AvailableUserActivity", "Error al centrar el mapa", e)
+
+            // Si hay un error, intentamos un enfoque más simple
+            val centerPoint = LatLng(
+                (location1.latitude + location2.latitude) / 2,
+                (location1.longitude + location2.longitude) / 2
+            )
+            mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(centerPoint, 14f))
+        }
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
         mMap.uiSettings.isZoomControlsEnabled = true
 
-        // Enable location display
         if (ActivityCompat.checkSelfPermission(
                 this,
                 android.Manifest.permission.ACCESS_FINE_LOCATION
