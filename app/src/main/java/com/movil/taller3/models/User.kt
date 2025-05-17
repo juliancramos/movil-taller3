@@ -10,3 +10,5 @@ data class User(
     val imageUrl: String = "",
     val available: Boolean = false
 )
+
+
