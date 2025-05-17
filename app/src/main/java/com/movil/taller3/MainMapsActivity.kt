@@ -47,9 +47,10 @@ import org.json.JSONObject
 
 
 class MainMapsActivity : AppCompatActivity(), OnMapReadyCallback {
-    //mapa
+    //Mapa
     private lateinit var mMap: GoogleMap
     private lateinit var binding: ActivityMainMapsBinding
+
     //Localización
     private lateinit var locationClient: FusedLocationProviderClient
     private lateinit var locationRequest: LocationRequest
@@ -76,7 +77,7 @@ class MainMapsActivity : AppCompatActivity(), OnMapReadyCallback {
             if (it) {
                 locationSettings()
             } else {
-                //caso de que no haya permiso de gps
+                Toast.makeText(this, "No hay permiso para acceder al GPS", Toast.LENGTH_SHORT).show()
             }
         }
     )
@@ -285,6 +286,7 @@ class MainMapsActivity : AppCompatActivity(), OnMapReadyCallback {
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
         loadLocations(this)
+        mMap?.uiSettings?.isZoomControlsEnabled = true
     }
 
 }
