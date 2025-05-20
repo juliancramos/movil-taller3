@@ -40,7 +40,9 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
+import com.google.firebase.messaging.FirebaseMessaging
 import com.movil.taller3.databinding.ActivityMainMapsBinding
+import com.movil.taller3.utils.NotificationManager
 import org.json.JSONObject
 
 
@@ -57,6 +59,7 @@ class MainMapsActivity : AppCompatActivity(), OnMapReadyCallback {
     private var primeraUbicacion: Boolean = true
 
     private var available: Boolean? = false
+    private var userName: String = ""
 
     private val locationSettings = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
@@ -89,8 +92,14 @@ class MainMapsActivity : AppCompatActivity(), OnMapReadyCallback {
         locationClient = LocationServices.getFusedLocationProviderClient(this)
         locationRequest = createLocationRequest()
         locationCallback = createLocationCallback()
+
+        // Obtener y actualizar el token de FCM
+        updateFCMToken()
+
         //Obtener valor actual del usuario
         obtenerDisponibilidad()
+        obtenerNombreUsuario()
+
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment
@@ -119,16 +128,94 @@ class MainMapsActivity : AppCompatActivity(), OnMapReadyCallback {
         }
         //cambiar disponibilidad
         binding.availableButton.setOnClickListener {
-            available = !(available ?: false)
+            val wasAvailable = available ?: false
+            available = !wasAvailable
             cambiarDisponibilidad()
             actualizarDisponibilidad()
+
+            // Si el usuario acaba de cambiar a disponible, notificar a los demás
+            if (!wasAvailable && available == true) {
+                notifyAvailabilityChange()
+            }
         }
         //actividad lista de usuarios
         binding.usuariosButton.setOnClickListener {
             startActivity(Intent(this, UserListActivity::class.java))
-
         }
     }
+
+    private fun updateFCMToken() {
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                Log.w("FCM", "Fetching FCM registration token failed", task.exception)
+                return@addOnCompleteListener
+            }
+
+            // Get new FCM registration token
+            val token = task.result
+
+            // Guardar en la base de datos
+            val currentUser = FirebaseAuth.getInstance().currentUser
+            if (currentUser != null) {
+                FirebaseDatabase.getInstance().reference
+                    .child("users")
+                    .child(currentUser.uid)
+                    .child("fcmToken")
+                    .setValue(token)
+            }
+        }
+    }
+
+    private fun obtenerNombreUsuario() {
+        val database = FirebaseDatabase.getInstance()
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+
+        val userRef = database.getReference("users").child(uid)
+        userRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val firstName = snapshot.child("firstName").getValue(String::class.java) ?: ""
+                val lastName = snapshot.child("lastName").getValue(String::class.java) ?: ""
+                userName = "$firstName $lastName"
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("RealtimeDB", "Error al leer nombre de usuario", error.toException())
+            }
+        })
+    }
+
+    private fun notifyAvailabilityChange() {
+        val currentUserId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val idNumber = getIdNumber { idNumber ->
+            if (idNumber.isNotEmpty()) {
+                NotificationManager.sendNotificationToAllExcept(
+                    currentUserId,
+                    userName,
+                    "$userName está ahora disponible para seguimiento",
+                    idNumber
+                )
+            }
+        }
+    }
+
+    private fun getIdNumber(callback: (String) -> Unit) {
+        val database = FirebaseDatabase.getInstance()
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return callback("")
+
+        val userRef = database.getReference("users").child(uid)
+        userRef.child("idNumber").addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val idNumber = snapshot.getValue(String::class.java) ?: ""
+                callback(idNumber)
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e("RealtimeDB", "Error al leer idNumber", error.toException())
+                callback("")
+            }
+        })
+    }
+
     private fun locationSettings() {
         val builder = LocationSettingsRequest.Builder().addLocationRequest(locationRequest)
         val client: SettingsClient = LocationServices.getSettingsClient(this)
@@ -305,5 +392,4 @@ class MainMapsActivity : AppCompatActivity(), OnMapReadyCallback {
         loadLocations(this)
         mMap?.uiSettings?.isZoomControlsEnabled = true
     }
-
 }

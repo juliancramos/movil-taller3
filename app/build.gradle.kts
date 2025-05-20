@@ -59,4 +59,9 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
     implementation("com.github.bumptech.glide:glide:4.15.1")
+
+    implementation ("com.google.firebase:firebase-messaging:23.2.1")
+
+    implementation ("com.squareup.okhttp3:okhttp:4.11.0")
+    implementation ("com.squareup.okhttp3:okhttp-coroutines:4.11.0")
 }
