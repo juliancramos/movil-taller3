@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.auth.FirebaseAuth
 import com.movil.taller3.databinding.ActivityLoginBinding
+import com.movil.taller3.services.AvailabilityListenerService
 
 class LoginActivity : AppCompatActivity() {
 
@@ -20,6 +21,8 @@ class LoginActivity : AppCompatActivity() {
         auth = FirebaseAuth.getInstance()
 
         if (FirebaseAuth.getInstance().currentUser != null) {
+            AvailabilityListenerService.enqueueWork(this, Intent(this, AvailabilityListenerService::class.java))
+
             startActivity(Intent(this, MainMapsActivity::class.java))
             //para quitar de la pila de actividades
             finish()
