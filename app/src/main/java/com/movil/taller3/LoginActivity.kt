@@ -19,11 +19,10 @@ class LoginActivity : AppCompatActivity() {
         setContentView(binding.root)
 
 
-        // Pedir permiso para notificaciones en Android 13+
+        // Pedir permiso para notificaciones en
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                 != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-
                 requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 2001)
             }
         }
@@ -33,7 +32,9 @@ class LoginActivity : AppCompatActivity() {
         auth = FirebaseAuth.getInstance()
 
         if (FirebaseAuth.getInstance().currentUser != null) {
-            AvailabilityListenerService.enqueueWork(this, Intent(this, AvailabilityListenerService::class.java))
+            AvailabilityListenerService
+                .enqueueWork(this,
+                    Intent(this, AvailabilityListenerService::class.java))
 
             startActivity(Intent(this, MainMapsActivity::class.java))
             //para quitar de la pila de actividades
