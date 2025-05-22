@@ -41,6 +41,7 @@ import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import com.movil.taller3.databinding.ActivityMainMapsBinding
+import com.movil.taller3.services.AvailabilityListenerService
 import org.json.JSONObject
 
 
@@ -86,6 +87,11 @@ class MainMapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         binding = ActivityMainMapsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        AvailabilityListenerService.enqueueWork(this,
+            Intent(this, AvailabilityListenerService::class.java))
+
+
         locationClient = LocationServices.getFusedLocationProviderClient(this)
         locationRequest = createLocationRequest()
         locationCallback = createLocationCallback()

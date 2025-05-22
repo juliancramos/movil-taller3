@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.auth.FirebaseAuth
 import com.movil.taller3.databinding.ActivityLoginBinding
+import com.movil.taller3.services.AvailabilityListenerService
 
 class LoginActivity : AppCompatActivity() {
 
@@ -17,9 +18,24 @@ class LoginActivity : AppCompatActivity() {
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+
+        // Pedir permiso para notificaciones en
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 2001)
+            }
+        }
+
+
+
         auth = FirebaseAuth.getInstance()
 
         if (FirebaseAuth.getInstance().currentUser != null) {
+            AvailabilityListenerService
+                .enqueueWork(this,
+                    Intent(this, AvailabilityListenerService::class.java))
+
             startActivity(Intent(this, MainMapsActivity::class.java))
             //para quitar de la pila de actividades
             finish()
